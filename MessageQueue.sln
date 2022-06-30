@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MessageQueueLibrary", "src\MessageQueueLibrary\MessageQueueLibrary.csproj", "{BA285F18-F689-4543-AA9F-F07C07D34CDF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DemoApp", "src\DemoApp\DemoApp.csproj", "{C7BFCF6B-F89E-4862-936C-13C810DF4593}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BA285F18-F689-4543-AA9F-F07C07D34CDF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BA285F18-F689-4543-AA9F-F07C07D34CDF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BA285F18-F689-4543-AA9F-F07C07D34CDF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BA285F18-F689-4543-AA9F-F07C07D34CDF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C7BFCF6B-F89E-4862-936C-13C810DF4593}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C7BFCF6B-F89E-4862-936C-13C810DF4593}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C7BFCF6B-F89E-4862-936C-13C810DF4593}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C7BFCF6B-F89E-4862-936C-13C810DF4593}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
