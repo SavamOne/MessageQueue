@@ -1,4 +1,5 @@
-﻿using Confluent.Kafka;
+﻿using System.Text.Json;
+using Confluent.Kafka;
 using DemoApp.BatchExecutors;
 using DemoApp.ExampleServices;
 using DemoApp.Options;
@@ -23,14 +24,14 @@ public static class Program
 			serviceCollection.AddOptions<KafkaOptions>(WeatherProducerBackgroundService.TopicName).Bind(section);
 			serviceCollection.AddHostedService<WeatherProducerBackgroundService>();
 			
-			serviceCollection.AddSingleton<BatchLogger<string, int>>();
-			serviceCollection.AddKafkaBatchConsumers<string, int>(builder =>
+			serviceCollection.AddSingleton<BatchLogger<string, WeatherValue>>();
+			serviceCollection.AddUniqueKafkaBatchConsumers<string, WeatherValue>(builder =>
 			{
 				KafkaOptions weatherTopicOptions = section.Get<KafkaOptions>();
 				
 				builder.BatchSize = 5;
 				builder.BatchWaitTimeout = TimeSpan.FromSeconds(10);
-				builder.BatchExecutorFactory = provider => provider.GetRequiredService<BatchLogger<string, int>>();
+				builder.BatchExecutorFactory = provider => provider.GetRequiredService<BatchLogger<string, WeatherValue>>();
 				builder.TopicName = weatherTopicOptions.TopicName;
 				builder.ConsumerCount = 3;
 				builder.ConsumerConfig = new ConsumerConfig
@@ -39,6 +40,7 @@ public static class Program
 					GroupId = weatherTopicOptions.ConsumerGroupId,
 					AutoOffsetReset = AutoOffsetReset.Earliest,
 				};
+				builder.ValueDeserializer = new WeatherValueSerializer();
 			});
 		});
 

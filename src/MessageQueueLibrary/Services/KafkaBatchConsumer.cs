@@ -7,88 +7,87 @@ namespace MessageQueueLibrary.Services;
 
 public class KafkaBatchConsumer<TKey, TValue> : IDisposable
 {
-	private readonly KafkaBatchConsumerOptions<TKey, TValue> consumerOptions;
-	private readonly IBatchMessageExecutor<TKey, TValue> executor;
-	private readonly ILogger<KafkaBatchConsumer<TKey, TValue>> logger;
-	private readonly IConsumer<TKey, TValue> consumer;
+	protected readonly IConsumer<TKey, TValue> Consumer;
+	protected readonly KafkaBatchConsumerParameters<TKey, TValue> ConsumerParameters;
+	protected readonly IBatchMessageExecutor<TKey, TValue> Executor;
+	protected readonly ILogger<KafkaBatchConsumer<TKey, TValue>> Logger;
 	
 	public KafkaBatchConsumer(
-		KafkaBatchConsumerOptions<TKey, TValue> consumerOptions,
+		KafkaBatchConsumerParameters<TKey, TValue> consumerParameters,
 		IBatchMessageExecutor<TKey, TValue> executor,
 		ILogger<KafkaBatchConsumer<TKey, TValue>> logger)
 	{
-		this.consumerOptions = consumerOptions;
-		this.executor = executor;
-		this.logger = logger;
+		ConsumerParameters = consumerParameters;
+		Executor = executor;
+		Logger = logger;
 		
-		consumer = new ConsumerBuilder<TKey, TValue>(consumerOptions.ConsumerConfig).Build();
+		Consumer = new ConsumerBuilder<TKey, TValue>(consumerParameters.ConsumerConfig)
+		   .SetKeyDeserializer(consumerParameters.KeyDeserializer)
+		   .SetValueDeserializer(consumerParameters.ValueDeserializer)
+		   .Build();
 	}
 
 	public async Task Execute(CancellationToken cancellationToken)
 	{
-		consumer.Subscribe(consumerOptions.TopicName);
+		Consumer.Subscribe(ConsumerParameters.TopicName);
 
 		while (!cancellationToken.IsCancellationRequested)
 		{
 			try
 			{
 				using CancellationTokenSource batchWaiterCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-				batchWaiterCts.CancelAfter(consumerOptions.BatchWaitTimeout);
+				batchWaiterCts.CancelAfter(ConsumerParameters.BatchWaitTimeout);
 				
 				List<ConsumeResult<TKey, TValue>> consumeResults = ConsumeBatch(batchWaiterCts.Token);
 
-				var items = GetToProcessAndToCommit(consumeResults);
-				
-				await executor.ProcessMessages(items.ToProcess);
-				consumer.Commit(items.ToCommit);
+				await ProcessAndCommit(consumeResults);
 			}
 			catch (ConsumeException consumeException)
 			{
-				logger.LogError(consumeException, "Unknown consume error");
+				Logger.LogError(consumeException, "Unknown consume error");
 			}
 			catch (Exception e)
 			{
-				logger.LogError(e, "Unknown error");
+				Logger.LogError(e, "Unknown error");
 				throw;
 			}
 		}
 	}
 	
-	protected virtual (IReadOnlyCollection<TopicPartitionOffset> ToCommit, IReadOnlyCollection<ResponseMessage<TKey, TValue>> ToProcess) GetToProcessAndToCommit(List<ConsumeResult<TKey, TValue>> consumeResults)
+	protected virtual async Task ProcessAndCommit(List<ConsumeResult<TKey, TValue>> consumeResults)
 	{
-		var messagesToProcess = new ResponseMessage<TKey, TValue>[consumeResults.Count];
-		var topicPartitionOffsetsToCommit = new TopicPartitionOffset[consumeResults.Count];
+		var messagesToProcess = new List<ResponseMessage<TKey, TValue>>(consumeResults.Count);
+		var topicPartitionOffsets = new List<TopicPartitionOffset>(consumeResults.Count);
 
-		for (int index = 0; index < consumeResults.Count; index++)
+		foreach (var consumeResult in consumeResults)
 		{
-			ConsumeResult<TKey, TValue> consumeResult = consumeResults[index];
-			
-			messagesToProcess[index] = new ResponseMessage<TKey, TValue>()
+			messagesToProcess.Add(new ResponseMessage<TKey, TValue>
 			{
 				Key = consumeResult.Message.Key,
 				Value = consumeResult.Message.Value
-			};
-			
-			topicPartitionOffsetsToCommit[index] = consumeResult.TopicPartitionOffset;
+			});
+			topicPartitionOffsets.Add(consumeResult.TopicPartitionOffset);
 		}
-		return (topicPartitionOffsetsToCommit, messagesToProcess);
+		
+		await Executor.ProcessMessages(messagesToProcess);
+		Consumer.Commit(topicPartitionOffsets);
 	}
-
+	
 	private List<ConsumeResult<TKey, TValue>> ConsumeBatch(CancellationToken token)
 	{
-		List<ConsumeResult<TKey, TValue>> consumeResults = new(consumerOptions.BatchSize);
+		List<ConsumeResult<TKey, TValue>> consumeResults = new(ConsumerParameters.BatchSize);
 		
-		while (!token.IsCancellationRequested && consumeResults.Count < consumerOptions.BatchSize)
+		while (!token.IsCancellationRequested && consumeResults.Count < ConsumerParameters.BatchSize)
 		{
 			ConsumeResult<TKey, TValue>? result;
 			
 			try
 			{
-				result = consumer.Consume(token);
+				result = Consumer.Consume(token);
 			}
 			catch (OperationCanceledException)
 			{
-				logger.LogDebug("Batch operation timeout or consume cancel");
+				Logger.LogDebug("Batch operation timeout or consume cancel");
 				break;
 			}
 			
@@ -103,7 +102,7 @@ public class KafkaBatchConsumer<TKey, TValue> : IDisposable
 	
 	public void Dispose()
 	{
-		consumer.Close();
-		consumer.Dispose();
+		Consumer.Close();
+		Consumer.Dispose();
 	}
 }

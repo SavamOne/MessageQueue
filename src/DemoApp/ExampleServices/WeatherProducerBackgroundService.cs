@@ -33,15 +33,19 @@ public class WeatherProducerBackgroundService : BackgroundService
 		{
 			BootstrapServers = options.BootstrapServers,
 		};
-
-		using IProducer<string, int> producer = new ProducerBuilder<string, int>(config).Build();
+		
+		using IProducer<string, WeatherValue> producer = new ProducerBuilder<string, WeatherValue>(config).SetValueSerializer(new WeatherValueSerializer()).Build();
 
 		while (!stoppingToken.IsCancellationRequested)
 		{
-			var message = new Message<string, int>
+			var message = new Message<string, WeatherValue>
 			{
 				Key = Cities[Random.Shared.Next(0, Cities.Length)],
-				Value = Random.Shared.Next(0, 30)
+				Value = new WeatherValue
+				{
+					Id = Random.Shared.Next(0, 100) != 20 ? Guid.NewGuid() : Guid.Empty,
+					Value = Random.Shared.Next(0, 30)
+				}
 			};
 
 			await producer.ProduceAsync(options.TopicName, message, stoppingToken);

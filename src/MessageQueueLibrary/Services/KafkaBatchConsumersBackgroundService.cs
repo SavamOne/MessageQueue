@@ -7,24 +7,24 @@ namespace MessageQueueLibrary.Services;
 
 public class KafkaBatchConsumerBackgroundService<TKey, TValue> : BackgroundService
 {
-	private readonly KafkaBatchConsumerOptions<TKey, TValue> consumerOptions;
+	private readonly KafkaBatchConsumerParameters<TKey, TValue> consumerParameters;
 	private readonly IServiceProvider serviceProvider;
 	private readonly ILogger<KafkaBatchConsumerBackgroundService<TKey, TValue>> logger;
 
-	public KafkaBatchConsumerBackgroundService(KafkaBatchConsumerOptions<TKey, TValue> consumerOptions, 
+	public KafkaBatchConsumerBackgroundService(KafkaBatchConsumerParameters<TKey, TValue> consumerParameters, 
 		IServiceProvider serviceProvider, 
 		ILogger<KafkaBatchConsumerBackgroundService<TKey, TValue>> logger)
 	{
-		this.consumerOptions = consumerOptions;
+		this.consumerParameters = consumerParameters;
 		this.serviceProvider = serviceProvider;
 		this.logger = logger;
 	}
 
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
-		Task[] consumersTasks = new Task[consumerOptions.ConsumerCount];
+		Task[] consumersTasks = new Task[consumerParameters.ConsumerCount];
 		
-		for (int i = 0; i < consumerOptions.ConsumerCount; i++)
+		for (int i = 0; i < consumerParameters.ConsumerCount; i++)
 		{
 			consumersTasks[i] = Task.Run(() => ConsumeMessages(stoppingToken), stoppingToken);;
 		}

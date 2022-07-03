@@ -1,16 +1,16 @@
 ﻿using Confluent.Kafka;
-using MessageQueueLibrary.Contracts;
 
 namespace MessageQueueLibrary.Options;
 
-public class KafkaBatchConsumerOptions<TKey, TValue>
+public class KafkaBatchConsumerParameters<TKey, TValue>
 {
-	public KafkaBatchConsumerOptions(
-		string topicName, 
-		int consumerCount, 
+	public KafkaBatchConsumerParameters(string topicName,
+		int consumerCount,
 		int batchSize,
 		ConsumerConfig consumerConfig,
-		TimeSpan batchWaitTimeout)
+		TimeSpan batchWaitTimeout,
+		IDeserializer<TKey>? keyDeserializer,
+		IDeserializer<TValue>? valueDeserializer)
 	{
 		if (string.IsNullOrEmpty(topicName))
 		{
@@ -34,6 +34,8 @@ public class KafkaBatchConsumerOptions<TKey, TValue>
 		BatchSize = batchSize;
 		ConsumerConfig = consumerConfig ?? throw new ArgumentNullException(nameof(consumerConfig));
 		BatchWaitTimeout = batchWaitTimeout;
+		ValueDeserializer = valueDeserializer;
+		KeyDeserializer = keyDeserializer;
 	}
 
 	public string TopicName { get; }
@@ -45,4 +47,8 @@ public class KafkaBatchConsumerOptions<TKey, TValue>
 	public TimeSpan BatchWaitTimeout { get; }
 
 	public ConsumerConfig ConsumerConfig { get; }
+	
+	public IDeserializer<TKey>? KeyDeserializer { get; }
+	
+	public IDeserializer<TValue>? ValueDeserializer { get; }
 }
