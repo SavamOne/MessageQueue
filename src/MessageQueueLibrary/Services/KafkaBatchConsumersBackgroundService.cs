@@ -1,30 +1,29 @@
 ﻿using MessageQueueLibrary.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace MessageQueueLibrary.Services;
 
 public class KafkaBatchConsumerBackgroundService<TKey, TValue> : BackgroundService
 {
-	private readonly KafkaBatchConsumerParameters<TKey, TValue> consumerParameters;
 	private readonly IServiceProvider serviceProvider;
-	private readonly ILogger<KafkaBatchConsumerBackgroundService<TKey, TValue>> logger;
+	private readonly KafkaConnectionOptions options;
 
-	public KafkaBatchConsumerBackgroundService(KafkaBatchConsumerParameters<TKey, TValue> consumerParameters, 
-		IServiceProvider serviceProvider, 
-		ILogger<KafkaBatchConsumerBackgroundService<TKey, TValue>> logger)
+	public KafkaBatchConsumerBackgroundService(
+		IOptionsMonitor<KafkaConnectionOptions> optionsMonitor,
+		KafkaConsumerParameters<TKey, TValue> consumerParameters, 
+		IServiceProvider serviceProvider)
 	{
-		this.consumerParameters = consumerParameters;
+		options = optionsMonitor.Get(consumerParameters.KafkaConsumerOptionsName);
 		this.serviceProvider = serviceProvider;
-		this.logger = logger;
 	}
 
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
-		Task[] consumersTasks = new Task[consumerParameters.ConsumerCount];
+		Task[] consumersTasks = new Task[options.ConsumerCount];
 		
-		for (int i = 0; i < consumerParameters.ConsumerCount; i++)
+		for (int i = 0; i < options.ConsumerCount; i++)
 		{
 			consumersTasks[i] = Task.Run(() => ConsumeMessages(stoppingToken), stoppingToken);;
 		}

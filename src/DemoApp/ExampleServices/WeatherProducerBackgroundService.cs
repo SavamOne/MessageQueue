@@ -1,5 +1,5 @@
 ﻿using Confluent.Kafka;
-using DemoApp.Options;
+using MessageQueueLibrary.Options;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
@@ -18,14 +18,14 @@ public class WeatherProducerBackgroundService : BackgroundService
 		"Самара"
 	};
 	
-	private readonly KafkaOptions options;
+	private readonly KafkaConnectionOptions options;
 
-	public WeatherProducerBackgroundService(IOptionsSnapshot<KafkaOptions> snapshot)
+	public WeatherProducerBackgroundService(IOptionsSnapshot<KafkaConnectionOptions> snapshot)
 	{
-		options = snapshot.Get(TopicName);
+		options = snapshot.Get(OptionsName);
 	}
 	
-	public static string TopicName => "WeatherTopicOptions";
+	public static string OptionsName => "WeatherKafkaOptions";
 
 	protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.Run(async () =>
 	{
@@ -43,7 +43,7 @@ public class WeatherProducerBackgroundService : BackgroundService
 				Key = Cities[Random.Shared.Next(0, Cities.Length)],
 				Value = new WeatherValue
 				{
-					Id = Random.Shared.Next(0, 100) != 20 ? Guid.NewGuid() : Guid.Empty,
+					Id = Random.Shared.Next(0, 10) != 5 ? Guid.NewGuid() : Guid.Empty,
 					Value = Random.Shared.Next(0, 30)
 				}
 			};

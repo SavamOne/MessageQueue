@@ -1,4 +1,6 @@
 ﻿using MessageQueueLibrary.Contracts;
+using MessageQueueLibrary.Options;
+using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 namespace MessageQueueLibrary.Services;
@@ -7,10 +9,18 @@ public class RedisMessageProcessor : IMessageStatusProcessor, IDisposable
 {
 	private readonly ConnectionMultiplexer redis;
 	private readonly IDatabase database;
-	
-	public RedisMessageProcessor()
+	private readonly RedisConnectionOptions redisOptions;
+	private readonly MessageStatusOptions options;
+
+	public RedisMessageProcessor(
+		MessageStatusParameters messageStatusParameters,
+		IOptionsSnapshot<RedisConnectionOptions> redisOptionsSnapshot,
+		IOptionsSnapshot<MessageStatusOptions> statusOptionsSnapshot)
 	{
-		redis = ConnectionMultiplexer.Connect("localhost");
+		redisOptions = redisOptionsSnapshot.Get(messageStatusParameters.RedisOptionsName);
+		options = statusOptionsSnapshot.Get(messageStatusParameters.MessageStatusProcessorOptionsName);
+		
+		redis = ConnectionMultiplexer.Connect(redisOptions.Configuration);
 		database = redis.GetDatabase();
 	}
 
@@ -22,9 +32,10 @@ public class RedisMessageProcessor : IMessageStatusProcessor, IDisposable
 		transaction.AddCondition(Condition.StringNotEqual(key, CreateValue(MessageStatus.Completed)));
 		transaction.AddCondition(Condition.StringNotEqual(key, CreateValue(MessageStatus.InProcess)));
 		
-		var statusTask = transaction.StringSetAsync(key, CreateValue(MessageStatus.InProcess), TimeSpan.FromSeconds(10));
-		var executeTransactionTask = transaction.ExecuteAsync();
-		var transactionResult = database.Wait(executeTransactionTask);
+		// Выставляем TTL на случай, если операция нестандартно долго в этом статусе (операция зависла, упал сервер), чтобы выполнить заново.
+		_ = transaction.StringSetAsync(key, CreateValue(MessageStatus.InProcess), options.InProcessTimeout);
+		
+		bool transactionResult = await transaction.ExecuteAsync();
 
 		if (!transactionResult)
 		{
@@ -43,22 +54,22 @@ public class RedisMessageProcessor : IMessageStatusProcessor, IDisposable
 	
 	public async Task SetCompleted(IUniqueValue value, bool success)
 	{
-		await database.StringSetAsync(CreateKey(value), CreateValue(success ? MessageStatus.Completed : MessageStatus.Faulted));
+		await database.StringSetAsync(CreateKey(value), CreateValue(success ? MessageStatus.Completed : MessageStatus.Faulted), options.CompletionTimeout);
 	}
 	
-	public Task SetCompleted(ICollection<IUniqueValue> values, bool success)
+	public async Task SetCompleted(ICollection<IUniqueValue> values, bool success)
 	{
-		var kvp = new KeyValuePair<RedisKey, RedisValue>[values.Count];
-		
 		RedisValue status = CreateValue(success ? MessageStatus.Completed : MessageStatus.Faulted);
 		
-		int i = 0;
+		ITransaction transaction = database.CreateTransaction();
+		
 		foreach (IUniqueValue uniqueValue in values)
 		{
-			kvp[i++] = new KeyValuePair<RedisKey, RedisValue>(CreateKey(uniqueValue), status);
+			// Выставляем TTL, чтобы не засорять редис. По идее должен совпадать с TTL на кафке.
+			_ = transaction.StringSetAsync(CreateKey(uniqueValue), status, options.CompletionTimeout);
 		}
-		
-		return database.StringSetAsync(kvp);
+
+		await transaction.ExecuteAsync();
 	}
 
 	public void Dispose()

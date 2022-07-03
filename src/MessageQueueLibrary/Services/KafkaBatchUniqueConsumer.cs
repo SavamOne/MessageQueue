@@ -2,22 +2,25 @@
 using MessageQueueLibrary.Contracts;
 using MessageQueueLibrary.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace MessageQueueLibrary.Services;
 
 public class KafkaBatchUniqueConsumer<TKey, TValue> : KafkaBatchConsumer<TKey, TValue> where TValue : IUniqueValue
 {
 	private readonly IMessageStatusProcessor messageStatusProcessor;
-
-	public KafkaBatchUniqueConsumer(KafkaBatchConsumerParameters<TKey, TValue> consumerParameters,
+	
+	public KafkaBatchUniqueConsumer(
+		KafkaConsumerParameters<TKey, TValue> consumerParameters, 
+		IOptionsSnapshot<KafkaConnectionOptions> optionsSnapshot, 
 		IBatchMessageExecutor<TKey, TValue> executor,
 		IMessageStatusProcessor messageStatusProcessor,
 		ILogger<KafkaBatchUniqueConsumer<TKey, TValue>> logger)
-		: base(consumerParameters, executor, logger)
+		: base(consumerParameters, optionsSnapshot, executor, logger)
 	{
 		this.messageStatusProcessor = messageStatusProcessor;
 	}
-
+	
 	protected override async Task ProcessAndCommit(List<ConsumeResult<TKey, TValue>> consumeResults)
 	{
 		var topicPartitionOffsetsToCommit = new List<TopicPartitionOffset>();

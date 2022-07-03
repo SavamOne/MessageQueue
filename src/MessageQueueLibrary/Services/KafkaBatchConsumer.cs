@@ -2,26 +2,37 @@
 using MessageQueueLibrary.Contracts;
 using MessageQueueLibrary.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace MessageQueueLibrary.Services;
 
 public class KafkaBatchConsumer<TKey, TValue> : IDisposable
 {
 	protected readonly IConsumer<TKey, TValue> Consumer;
-	protected readonly KafkaBatchConsumerParameters<TKey, TValue> ConsumerParameters;
 	protected readonly IBatchMessageExecutor<TKey, TValue> Executor;
-	protected readonly ILogger<KafkaBatchConsumer<TKey, TValue>> Logger;
 	
+	private readonly ILogger<KafkaBatchConsumer<TKey, TValue>> logger;
+	private readonly KafkaConnectionOptions options;
+
 	public KafkaBatchConsumer(
-		KafkaBatchConsumerParameters<TKey, TValue> consumerParameters,
+		KafkaConsumerParameters<TKey, TValue> consumerParameters,
+		IOptionsSnapshot<KafkaConnectionOptions> optionsSnapshot,
 		IBatchMessageExecutor<TKey, TValue> executor,
 		ILogger<KafkaBatchConsumer<TKey, TValue>> logger)
 	{
-		ConsumerParameters = consumerParameters;
+		this.logger = logger;
+		options = optionsSnapshot.Get(consumerParameters.KafkaConsumerOptionsName);
 		Executor = executor;
-		Logger = logger;
-		
-		Consumer = new ConsumerBuilder<TKey, TValue>(consumerParameters.ConsumerConfig)
+
+		ConsumerConfig consumerConfig = new()
+		{
+			BootstrapServers = options.BootstrapServers,
+			GroupId = options.ConsumerGroupId,
+			EnableAutoCommit = false,
+			AutoOffsetReset = AutoOffsetReset.Earliest,
+		};
+
+		Consumer = new ConsumerBuilder<TKey, TValue>(consumerConfig)
 		   .SetKeyDeserializer(consumerParameters.KeyDeserializer)
 		   .SetValueDeserializer(consumerParameters.ValueDeserializer)
 		   .Build();
@@ -29,14 +40,14 @@ public class KafkaBatchConsumer<TKey, TValue> : IDisposable
 
 	public async Task Execute(CancellationToken cancellationToken)
 	{
-		Consumer.Subscribe(ConsumerParameters.TopicName);
+		Consumer.Subscribe(options.TopicName);
 
 		while (!cancellationToken.IsCancellationRequested)
 		{
 			try
 			{
 				using CancellationTokenSource batchWaiterCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-				batchWaiterCts.CancelAfter(ConsumerParameters.BatchWaitTimeout);
+				batchWaiterCts.CancelAfter(options.BatchWaitTimeout);
 				
 				List<ConsumeResult<TKey, TValue>> consumeResults = ConsumeBatch(batchWaiterCts.Token);
 
@@ -44,11 +55,11 @@ public class KafkaBatchConsumer<TKey, TValue> : IDisposable
 			}
 			catch (ConsumeException consumeException)
 			{
-				Logger.LogError(consumeException, "Unknown consume error");
+				logger.LogError(consumeException, "Unknown consume error");
 			}
 			catch (Exception e)
 			{
-				Logger.LogError(e, "Unknown error");
+				logger.LogError(e, "Unknown error");
 				throw;
 			}
 		}
@@ -75,9 +86,9 @@ public class KafkaBatchConsumer<TKey, TValue> : IDisposable
 	
 	private List<ConsumeResult<TKey, TValue>> ConsumeBatch(CancellationToken token)
 	{
-		List<ConsumeResult<TKey, TValue>> consumeResults = new(ConsumerParameters.BatchSize);
+		List<ConsumeResult<TKey, TValue>> consumeResults = new(options.BatchSize);
 		
-		while (!token.IsCancellationRequested && consumeResults.Count < ConsumerParameters.BatchSize)
+		while (!token.IsCancellationRequested && consumeResults.Count < options.BatchSize)
 		{
 			ConsumeResult<TKey, TValue>? result;
 			
@@ -87,7 +98,7 @@ public class KafkaBatchConsumer<TKey, TValue> : IDisposable
 			}
 			catch (OperationCanceledException)
 			{
-				Logger.LogDebug("Batch operation timeout or consume cancel");
+				logger.LogDebug("Batch operation timeout or consume cancel");
 				break;
 			}
 			
