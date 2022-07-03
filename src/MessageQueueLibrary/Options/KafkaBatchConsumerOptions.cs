@@ -9,7 +9,6 @@ public class KafkaBatchConsumerOptions<TKey, TValue>
 		string topicName, 
 		int consumerCount, 
 		int batchSize,
-		Func<IServiceProvider, IBatchMessageExecutor<TKey, TValue>> batchExecutorFactory,
 		ConsumerConfig consumerConfig,
 		TimeSpan batchWaitTimeout)
 	{
@@ -33,7 +32,6 @@ public class KafkaBatchConsumerOptions<TKey, TValue>
 		TopicName = topicName;
 		ConsumerCount = consumerCount;
 		BatchSize = batchSize;
-		BatchExecutorFactory = batchExecutorFactory ?? throw new ArgumentNullException(nameof(batchExecutorFactory));
 		ConsumerConfig = consumerConfig ?? throw new ArgumentNullException(nameof(consumerConfig));
 		BatchWaitTimeout = batchWaitTimeout;
 	}
@@ -45,8 +43,6 @@ public class KafkaBatchConsumerOptions<TKey, TValue>
 	public int BatchSize { get; }
 	
 	public TimeSpan BatchWaitTimeout { get; }
-	
-	public Func<IServiceProvider, IBatchMessageExecutor<TKey, TValue>> BatchExecutorFactory { get; } 
-	
+
 	public ConsumerConfig ConsumerConfig { get; }
 }

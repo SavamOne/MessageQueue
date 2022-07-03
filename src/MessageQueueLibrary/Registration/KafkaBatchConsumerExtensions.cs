@@ -1,7 +1,6 @@
 ﻿using MessageQueueLibrary.Options;
 using MessageQueueLibrary.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 namespace MessageQueueLibrary.Registration;
 
@@ -16,10 +15,9 @@ public static class KafkaBatchConsumerExtensions
 		KafkaBatchConsumerOptions<TKey, TValue> options = new(builder.TopicName,
 			builder.ConsumerCount,
 			builder.BatchSize,
-			builder.BatchExecutorFactory,
 			builder.ConsumerConfig,
 			builder.BatchWaitTimeout);
-		
+
 		// HACK: Коммитом занимается самостоятельно KafkaBatchConsumer.
 		// По-хорошему для ConsumerConfig нужно сделать отдельную read-only обертку, где не будет этой настройки
 		if (options.ConsumerConfig.EnableAutoCommit == true)
@@ -28,11 +26,12 @@ public static class KafkaBatchConsumerExtensions
 		}
 		options.ConsumerConfig.EnableAutoCommit = false;
 
-		serviceCollection.AddHostedService(serviceProvider =>
-		{
-			var logger = serviceProvider.GetRequiredService<ILogger<KafkaBatchConsumerBackgroundService<TKey, TValue>>>();
-			return new KafkaBatchConsumerBackgroundService<TKey, TValue>(options, serviceProvider, logger);
-		});
+		serviceCollection.AddSingleton(options);
+		serviceCollection.AddScoped<KafkaBatchConsumer<TKey, TValue>, KafkaBatchConsumer<TKey, TValue>>();
+		serviceCollection.AddScoped(sp => builder.BatchExecutorFactory(sp));
+		serviceCollection.AddHostedService<KafkaBatchConsumerBackgroundService<TKey, TValue>>();
+
+		// serviceCollection.AddSingleton<KafkaConsumer<TKey, TValue>, KafkaUniqueConsumer<TKey, TValue>>();
 
 		return serviceCollection;
 	}

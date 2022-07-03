@@ -35,12 +35,8 @@ public class KafkaBatchConsumerBackgroundService<TKey, TValue> : BackgroundServi
 	private async Task ConsumeMessages(CancellationToken stoppingToken)
 	{
 		using IServiceScope scope = serviceProvider.CreateScope();
-
-		var executor = consumerOptions.BatchExecutorFactory(scope.ServiceProvider);
-		var consumerLogger = scope.ServiceProvider.GetRequiredService<ILogger<KafkaConsumer<TKey, TValue>>>();
-
-		using KafkaConsumer<TKey, TValue> consumer = new(consumerOptions, executor, consumerLogger);
-		await consumer.Execute(stoppingToken);
+		using KafkaBatchConsumer<TKey, TValue> batchConsumer = scope.ServiceProvider.GetRequiredService<KafkaBatchConsumer<TKey, TValue>>();
+		await batchConsumer.Execute(stoppingToken);
 	}
 
 }
